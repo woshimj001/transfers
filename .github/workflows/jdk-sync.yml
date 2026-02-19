@@ -1,0 +1,38 @@
+name: JDK Image Sync
+on: 
+  push:
+  workflow_dispatch: # 支持手动触发
+
+jobs:
+  jdk-transfer:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install Skopeo
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y skopeo
+
+      - name: Sync Alpine Version (Smallest)
+        run: |
+          skopeo copy \
+            --override-os linux \
+            --override-arch arm64 \
+            docker://docker.io/library/eclipse-temurin:21-jre-alpine \
+            docker-archive:temurin-21-alpine-arm64.tar:eclipse-temurin:21-jre-alpine
+
+      - name: Sync Jammy Version (Most Compatible)
+        run: |
+          skopeo copy \
+            --override-os linux \
+            --override-arch arm64 \
+            docker://docker.io/library/eclipse-temurin:21-jre-jammy \
+            docker-archive:temurin-21-jammy-arm64.tar:eclipse-temurin:21-jre-jammy
+
+      # 方案 A：上传为 Artifacts（适合直接下载）
+      - name: Upload Images as Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: jdk-21-arm64-images
+          path: |
+            temurin-21-alpine-arm64.tar
+            temurin-21-jammy-arm64.tar
