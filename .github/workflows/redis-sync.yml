@@ -26,6 +26,10 @@ jobs:
             --override-arch arm64 \
             docker://docker.io/library/redis:8.6.0-alpine \
             docker-archive:redis-8.6.0-arm64.tar:redis:8.6.0-alpine
+            
+          # 2. 手动进行极高比例压缩
+          gzip -9 redis-8.6.0-arm64.tar
+          # 此时会生成一个 redis-8.6.0-arm64.tar.gz 文件，体积会降到 33MB 左右
 
       - name: Create Release and Upload Tar
         uses: softprops/action-gh-release@v2
@@ -36,6 +40,6 @@ jobs:
             Redis 8.6.0-alpine for ARM64 (Kylin V10 SP3 compatible)
             Architecture: arm64
             Format: Docker Archive (.tar)
-          files: redis-8.6.0-arm64.tar
+          files: redis-8.6.0-arm64.tar.gz  # 上传压缩后的文件
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
