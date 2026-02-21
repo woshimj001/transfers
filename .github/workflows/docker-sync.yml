@@ -1,5 +1,11 @@
 name: Docker Sync Professional
-on: [push]
+on: 
+  workflow_dispatch: # 支持手动触发
+    inputs:
+      tag_name:
+        description: 'Release Tag Name'
+        required: true
+        default: 'v8.6.0-arm64'
 jobs:
   transfer:
     runs-on: ubuntu-latest
