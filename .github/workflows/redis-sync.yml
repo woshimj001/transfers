@@ -1,9 +1,11 @@
 name: Redis ARM64 Sync to Release
 on: 
-  push:
-    branches:
-      - main
-  workflow_dispatch: # 支持手动触发
+  workflow_dispatch: # 核心：仅开启手动触发
+    inputs:
+      tag_name:
+        description: 'Release Tag Name'
+        required: true
+        default: 'v8.6.0-manual'
 
 jobs:
   redis-release:
