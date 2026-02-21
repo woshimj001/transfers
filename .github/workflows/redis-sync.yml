@@ -1,0 +1,39 @@
+name: Redis ARM64 Sync to Release
+on: 
+  push:
+    branches:
+      - main
+  workflow_dispatch: # 支持手动触发
+
+jobs:
+  redis-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # 必须赋予写入 Release 的权限
+    steps:
+      - name: Install Skopeo
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y skopeo
+
+      - name: Pull and Save Redis ARM64
+        run: |
+          # 抓取 Redis 8.6.0-alpine 的 arm64 版本
+          skopeo copy \
+            --override-os linux \
+            --override-arch arm64 \
+            docker://docker.io/library/redis:8.6.0-alpine \
+            docker-archive:redis-8.6.0-arm64.tar:redis:8.6.0-alpine
+
+      - name: Create Release and Upload Tar
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: redis-8.6.0-${{ github.run_number }}
+          name: Redis 8.6.0 ARM64 Release
+          body: |
+            Redis 8.6.0-alpine for ARM64 (Kylin V10 SP3 compatible)
+            Architecture: arm64
+            Format: Docker Archive (.tar)
+          files: redis-8.6.0-arm64.tar
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
