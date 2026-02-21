@@ -1,7 +1,12 @@
 name: JDK Image Sync
 on: 
-  push:
+  # push:
   workflow_dispatch: # 支持手动触发
+    inputs:
+      tag_name:
+        description: 'Release Tag Name'
+        required: true
+        default: 'jdk21-arm64'
 
 jobs:
   jdk-transfer:
