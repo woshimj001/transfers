@@ -1,0 +1,66 @@
+name: RocketMQ ARM64 Sync to Release
+on: 
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Release Tag (e.g. v5.3.4-arm64)'
+        required: true
+        default: 'rocketmq-5.3.4-arm64'
+
+jobs:
+  rocketmq-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Install Skopeo
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y skopeo
+
+      - name: Pull and Save RocketMQ ARM64 Images
+        run: |
+          # ====================== 版本配置 ======================
+          ROCKETMQ_VERSION="5.3.4"
+          DASHBOARD_VERSION="2.1.0"
+          ARCH="arm64"
+          OS="linux"
+
+          # ====================== 导出 rocketmq ======================
+          echo "=== 导出 rocketmq:${ROCKETMQ_VERSION} (${ARCH}) ==="
+          skopeo copy \
+            --override-os ${OS} \
+            --override-arch ${ARCH} \
+            docker://docker.io/library/rocketmq:${ROCKETMQ_VERSION} \
+            docker-archive:rocketmq-${ROCKETMQ_VERSION}-${ARCH}.tar:rocketmq:${ROCKETMQ_VERSION}
+          gzip -9f rocketmq-${ROCKETMQ_VERSION}-${ARCH}.tar
+
+          # ====================== 导出 rocketmq-dashboard ======================
+          echo "=== 导出 rocketmq-dashboard:${DASHBOARD_VERSION} (${ARCH}) ==="
+          skopeo copy \
+            --override-os ${OS} \
+            --override-arch ${ARCH} \
+            docker://docker.io/apacherocketmq/rocketmq-dashboard:${DASHBOARD_VERSION} \
+            docker-archive:rocketmq-dashboard-${DASHBOARD_VERSION}-${ARCH}.tar:rocketmq-dashboard:${DASHBOARD_VERSION}
+          gzip -9f rocketmq-dashboard-${DASHBOARD_VERSION}-${ARCH}.tar
+
+      - name: Create Release and Upload All Files
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.tag_name }}
+          name: RocketMQ ARM64 Release ${{ github.event.inputs.tag_name }}
+          body: |
+            RocketMQ ARM64 Docker Images
+            Compatible with Kylin V10 SP3 / ARM64 Linux
+
+            📦 Included:
+            - rocketmq:5.3.4 (arm64)
+            - rocketmq-dashboard:2.1.0 (arm64)
+            
+            Architecture: arm64
+            OS: Linux
+          files: |
+            rocketmq-5.3.4-arm64.tar.gz
+            rocketmq-dashboard-2.1.0-arm64.tar.gz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
