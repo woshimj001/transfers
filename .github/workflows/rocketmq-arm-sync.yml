@@ -1,66 +1,91 @@
-name: RocketMQ ARM64 Sync to Release
-on: 
+name: RocketMQ Multi-Arch Sync to Release
+
+on:
   workflow_dispatch:
     inputs:
-      tag_name:
-        description: 'Release Tag (e.g. v5.3.4-arm64)'
+      rocketmq_version:
+        description: "RocketMQ version (e.g. 5.3.4)"
         required: true
-        default: 'rocketmq-5.3.4-arm64'
+        default: "5.3.4"
+
+      dashboard_version:
+        description: "RocketMQ Dashboard version (e.g. 2.1.0)"
+        required: true
+        default: "2.1.0"
+
+      arch:
+        description: "Target architecture"
+        required: true
+        default: "arm64"
+        type: choice
+        options:
+          - arm64
+          - amd64
 
 jobs:
   rocketmq-release:
     runs-on: ubuntu-latest
+
     permissions:
       contents: write
+
     steps:
       - name: Install Skopeo
         run: |
           sudo apt-get update
           sudo apt-get install -y skopeo
 
-      - name: Pull and Save RocketMQ ARM64 Images
+      - name: Set Variables
+        id: vars
         run: |
-          # ====================== 版本配置 ======================
-          ROCKETMQ_VERSION="5.3.4"
-          DASHBOARD_VERSION="2.1.0"
-          ARCH="arm64"
-          OS="linux"
+          echo "rocketmq_tar=rocketmq-${{ inputs.rocketmq_version }}-${{ inputs.arch }}.tar" >> $GITHUB_OUTPUT
+          echo "dashboard_tar=rocketmq-dashboard-${{ inputs.dashboard_version }}-${{ inputs.arch }}.tar" >> $GITHUB_OUTPUT
 
-          # ====================== 导出 rocketmq (官方正确镜像) ======================
-          echo "=== 导出 rocketmq:${ROCKETMQ_VERSION} (${ARCH}) ==="
+      - name: Pull and Save RocketMQ Images
+        run: |
+          set -euxo pipefail
+
+          echo "=== Export RocketMQ ${{ inputs.rocketmq_version }} (${ARCH}) ==="
           skopeo copy \
-            --override-os ${OS} \
-            --override-arch ${ARCH} \
-            docker://docker.io/apache/rocketmq:${ROCKETMQ_VERSION} \
-            docker-archive:rocketmq-${ROCKETMQ_VERSION}-${ARCH}.tar:apache/rocketmq:${ROCKETMQ_VERSION}
-          gzip -9f rocketmq-${ROCKETMQ_VERSION}-${ARCH}.tar
+            --override-os linux \
+            --override-arch ${{ inputs.arch }} \
+            docker://docker.io/apache/rocketmq:${{ inputs.rocketmq_version }} \
+            docker-archive:${{ steps.vars.outputs.rocketmq_tar }}:apache/rocketmq:${{ inputs.rocketmq_version }}
 
-          # ====================== 导出 rocketmq-dashboard ======================
-          echo "=== 导出 rocketmq-dashboard:${DASHBOARD_VERSION} (${ARCH}) ==="
+          gzip -9f ${{ steps.vars.outputs.rocketmq_tar }}
+
+          echo "=== Export RocketMQ Dashboard ${{ inputs.dashboard_version }} (${ARCH}) ==="
           skopeo copy \
-            --override-os ${OS} \
-            --override-arch ${ARCH} \
-            docker://docker.io/apacherocketmq/rocketmq-dashboard:${DASHBOARD_VERSION} \
-            docker-archive:rocketmq-dashboard-${DASHBOARD_VERSION}-${ARCH}.tar:apacherocketmq/rocketmq-dashboard:${DASHBOARD_VERSION}
-          gzip -9f rocketmq-dashboard-${DASHBOARD_VERSION}-${ARCH}.tar
+            --override-os linux \
+            --override-arch ${{ inputs.arch }} \
+            docker://docker.io/apacherocketmq/rocketmq-dashboard:${{ inputs.dashboard_version }} \
+            docker-archive:${{ steps.vars.outputs.dashboard_tar }}:apacherocketmq/rocketmq-dashboard:${{ inputs.dashboard_version }}
 
-      - name: Create Release and Upload All Files
+          gzip -9f ${{ steps.vars.outputs.dashboard_tar }}
+
+      - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.event.inputs.tag_name }}
-          name: RocketMQ ARM64 Release ${{ github.event.inputs.tag_name }}
+          tag_name: rocketmq-${{ inputs.rocketmq_version }}-${{ inputs.arch }}-${{ github.run_number }}
+          name: RocketMQ ${{ inputs.rocketmq_version }} (${{ inputs.arch }})
           body: |
-            RocketMQ ARM64 Docker Images
-            Compatible with Kylin V10 SP3 / ARM64 Linux
+            RocketMQ Docker Images (Multi-Arch Ready)
 
-            📦 Included:
-            - apache/rocketmq:5.3.4 (arm64)
-            - apacherocketmq/rocketmq-dashboard:2.1.0 (arm64)
-            
-            Architecture: arm64
+            ✅ Included:
+            - apache/rocketmq:${{ inputs.rocketmq_version }}
+            - apacherocketmq/rocketmq-dashboard:${{ inputs.dashboard_version }}
+
+            Architecture: ${{ inputs.arch }}
             OS: Linux
+            Format: docker-archive (.tar.gz)
+
+            Compatible with:
+            - Kylin V10 SP3
+            - OpenEuler
+            - UOS / UnionTech
+            - ARM64 Servers
           files: |
-            rocketmq-5.3.4-arm64.tar.gz
-            rocketmq-dashboard-2.1.0-arm64.tar.gz
+            ${{ steps.vars.outputs.rocketmq_tar }}.gz
+            ${{ steps.vars.outputs.dashboard_tar }}.gz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
