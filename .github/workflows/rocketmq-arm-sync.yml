@@ -16,11 +16,11 @@ on:
       arch:
         description: "Target architecture"
         required: true
-        default: "arm64"
+        default: "amd64"
         type: choice
         options:
-          - arm64
           - amd64
+          - arm64
 
 jobs:
   rocketmq-release:
@@ -35,7 +35,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y skopeo
 
-      - name: Set Variables
+      - name: Set Output Variables
         id: vars
         run: |
           echo "rocketmq_tar=rocketmq-${{ inputs.rocketmq_version }}-${{ inputs.arch }}.tar" >> $GITHUB_OUTPUT
@@ -45,7 +45,7 @@ jobs:
         run: |
           set -euxo pipefail
 
-          echo "=== Export RocketMQ ${{ inputs.rocketmq_version }} (${ARCH}) ==="
+          echo "=== Export RocketMQ ${{ inputs.rocketmq_version }} (${{ inputs.arch }}) ==="
           skopeo copy \
             --override-os linux \
             --override-arch ${{ inputs.arch }} \
@@ -54,7 +54,7 @@ jobs:
 
           gzip -9f ${{ steps.vars.outputs.rocketmq_tar }}
 
-          echo "=== Export RocketMQ Dashboard ${{ inputs.dashboard_version }} (${ARCH}) ==="
+          echo "=== Export RocketMQ Dashboard ${{ inputs.dashboard_version }} (${{ inputs.arch }}) ==="
           skopeo copy \
             --override-os linux \
             --override-arch ${{ inputs.arch }} \
@@ -83,7 +83,7 @@ jobs:
             - Kylin V10 SP3
             - OpenEuler
             - UOS / UnionTech
-            - ARM64 Servers
+            - x86_64 / ARM64 servers
           files: |
             ${{ steps.vars.outputs.rocketmq_tar }}.gz
             ${{ steps.vars.outputs.dashboard_tar }}.gz
