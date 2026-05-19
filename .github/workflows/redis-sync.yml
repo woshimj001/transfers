@@ -1,56 +1,49 @@
 name: Redis ARM64 Sync to Release
-
-on:
-  workflow_dispatch:
+on: 
+  workflow_dispatch: # 核心：仅开启手动触发
     inputs:
       redis_version:
-        description: "Redis version (e.g. 8.6.0)"
+        description: 'Redis Version (e.g. 8.6.0)'
         required: true
-        default: "8.6.0"
-
-      arch:
-        description: "Target architecture"
+        default: '8.6.0'
+      redis_arch:
+        description: 'Redis Architecture (e.g. arm64)'
         required: true
-        default: "arm64"
-        type: choice
-        options:
-          - arm64
-          - amd64
+        default: 'arm64'
 
 jobs:
   redis-release:
     runs-on: ubuntu-latest
-
     permissions:
-      contents: write
-
+      contents: write # 必须赋予写入 Release 的权限
     steps:
       - name: Install Skopeo
         run: |
           sudo apt-get update
           sudo apt-get install -y skopeo
 
-      - name: Pull and Save Redis Image
+      - name: Pull and Save Redis ${{ inputs.redis_arch }}
         run: |
-          set -euxo pipefail
-
+          # 抓取 Redis 指定版本的指定架构
           skopeo copy \
             --override-os linux \
-            --override-arch ${{ inputs.arch }} \
+            --override-arch ${{ inputs.redis_arch }} \
             docker://docker.io/library/redis:${{ inputs.redis_version }}-alpine \
-            docker-archive:redis-${{ inputs.redis_version }}-${{ inputs.arch }}.tar:redis:${{ inputs.redis_version }}-alpine
-
-          gzip -9 redis-${{ inputs.redis_version }}-${{ inputs.arch }}.tar
+            docker-archive:redis-${{ inputs.redis_version }}-${{ inputs.redis_arch }}.tar:redis:${{ inputs.redis_version }}-alpine
+            
+          # 2. 手动进行极高比例压缩
+          gzip -9 redis-${{ inputs.redis_version }}-${{ inputs.redis_arch }}.tar
+          # 此时会生成一个 redis-版本-架构.tar.gz 文件
 
       - name: Create Release and Upload Tar
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: redis-${{ inputs.redis_version }}-${{ inputs.arch }}-${{ github.run_number }}
-          name: Redis ${{ inputs.redis_version }} ${{ inputs.arch }} Release
+          tag_name: redis-${{ inputs.redis_version }}-${{ inputs.redis_arch }}-${{ github.run_number }}
+          name: Redis ${{ inputs.redis_version }} ${{ inputs.redis_arch }} Release
           body: |
-            Redis ${{ inputs.redis_version }}-alpine for ${{ inputs.arch }}
-            Architecture: ${{ inputs.arch }}
+            Redis ${{ inputs.redis_version }}-alpine for ${{ inputs.redis_arch }} (Kylin V10 SP3 compatible)
+            Architecture: ${{ inputs.redis_arch }}
             Format: Docker Archive (.tar)
-          files: redis-${{ inputs.redis_version }}-${{ inputs.arch }}.tar.gz
+          files: redis-${{ inputs.redis_version }}-${{ inputs.redis_arch }}.tar.gz  # 上传压缩后的文件
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}   
