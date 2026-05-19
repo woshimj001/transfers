@@ -1,45 +1,76 @@
-name: Redis ARM64 Sync to Release
-on: 
-  workflow_dispatch: # 核心：仅开启手动触发
+name: Redis Multi-Arch Sync to Release
+
+on:
+  workflow_dispatch: #仅开启手动触发
     inputs:
-      tag_name:
-        description: 'Release Tag Name'
+      redis_version:
+        description: "Redis version (e.g. 8.6.0)"
         required: true
-        default: 'v8.6.0-manual'
+        default: "8.6.3"
+
+      arch:
+        description: "Target architecture"
+        required: true
+        default: "arm64"
+        type: choice
+        options:
+          - arm64
+          - amd64
+
+      variant:
+        description: "Image variant"
+        required: true
+        default: "alpine"
+        type: choice
+        options:
+          - alpine
+          - bookworm
 
 jobs:
   redis-release:
     runs-on: ubuntu-latest
+
     permissions:
-      contents: write # 必须赋予写入 Release 的权限
+      contents: write
+
     steps:
       - name: Install Skopeo
         run: |
           sudo apt-get update
           sudo apt-get install -y skopeo
 
-      - name: Pull and Save Redis ARM64
+      - name: Set Image Variables
+        id: vars
         run: |
-          # 抓取 Redis 8.6.0-alpine 的 arm64 版本
+          IMAGE_TAG="${{ inputs.redis_version }}-${{ inputs.variant }}"
+          ARCHIVE_NAME="redis-${{ inputs.redis_version }}-${{ inputs.arch }}.tar"
+          echo "image_tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
+          echo "archive_name=$ARCHIVE_NAME" >> $GITHUB_OUTPUT
+
+      - name: Pull and Save Redis Image
+        run: |
           skopeo copy \
             --override-os linux \
-            --override-arch arm64 \
-            docker://docker.io/library/redis:8.6.0-alpine \
-            docker-archive:redis-8.6.0-arm64.tar:redis:8.6.0-alpine
-            
-          # 2. 手动进行极高比例压缩
-          gzip -9 redis-8.6.0-arm64.tar
-          # 此时会生成一个 redis-8.6.0-arm64.tar.gz 文件，体积会降到 33MB 左右
+            --override-arch ${{ inputs.arch }} \
+            docker://docker.io/library/redis:${{ steps.vars.outputs.image_tag }} \
+            docker-archive:${{ steps.vars.outputs.archive_name }}:redis:${{ steps.vars.outputs.image_tag }}
 
-      - name: Create Release and Upload Tar
+      - name: Compress Archive
+        run: |
+          gzip -9 ${{ steps.vars.outputs.archive_name }}
+
+      - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: redis-8.6.0-${{ github.run_number }}
-          name: Redis 8.6.0 ARM64 Release
+          tag_name: redis-${{ inputs.redis_version }}-${{ inputs.arch }}-${{ github.run_number }}
+          name: Redis ${{ inputs.redis_version }} (${{ inputs.arch }})
           body: |
-            Redis 8.6.0-alpine for ARM64 (Kylin V10 SP3 compatible)
-            Architecture: arm64
-            Format: Docker Archive (.tar)
-          files: redis-8.6.0-arm64.tar.gz  # 上传压缩后的文件
+            Redis ${{ inputs.redis_version }}-${{ inputs.variant }}
+            Architecture: ${{ inputs.arch }}
+            OS: Linux
+            Format: Docker Archive (.tar.gz)
+
+            Compatible with Kylin / UOS / openEuler / Rocky / Alma
+          files: ${{ steps.vars.outputs.archive_name }}.gz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
