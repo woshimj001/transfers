@@ -1,12 +1,12 @@
-name: Redis Multi-Arch Sync to Release
+name: Redis ARM64 Sync to Release
 
 on:
-  workflow_dispatch: #仅开启手动触发
+  workflow_dispatch:
     inputs:
       redis_version:
         description: "Redis version (e.g. 8.6.0)"
         required: true
-        default: "8.6.3"
+        default: "8.6.0"
 
       arch:
         description: "Target architecture"
@@ -16,15 +16,6 @@ on:
         options:
           - arm64
           - amd64
-
-      variant:
-        description: "Image variant"
-        required: true
-        default: "alpine"
-        type: choice
-        options:
-          - alpine
-          - bookworm
 
 jobs:
   redis-release:
@@ -39,38 +30,27 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y skopeo
 
-      - name: Set Image Variables
-        id: vars
-        run: |
-          IMAGE_TAG="${{ inputs.redis_version }}-${{ inputs.variant }}"
-          ARCHIVE_NAME="redis-${{ inputs.redis_version }}-${{ inputs.arch }}.tar"
-          echo "image_tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
-          echo "archive_name=$ARCHIVE_NAME" >> $GITHUB_OUTPUT
-
       - name: Pull and Save Redis Image
         run: |
+          set -euxo pipefail
+
           skopeo copy \
             --override-os linux \
             --override-arch ${{ inputs.arch }} \
-            docker://docker.io/library/redis:${{ steps.vars.outputs.image_tag }} \
-            docker-archive:${{ steps.vars.outputs.archive_name }}:redis:${{ steps.vars.outputs.image_tag }}
+            docker://docker.io/library/redis:${{ inputs.redis_version }}-alpine \
+            docker-archive:redis-${{ inputs.redis_version }}-${{ inputs.arch }}.tar:redis:${{ inputs.redis_version }}-alpine
 
-      - name: Compress Archive
-        run: |
-          gzip -9 ${{ steps.vars.outputs.archive_name }}
+          gzip -9 redis-${{ inputs.redis_version }}-${{ inputs.arch }}.tar
 
-      - name: Create GitHub Release
+      - name: Create Release and Upload Tar
         uses: softprops/action-gh-release@v2
         with:
           tag_name: redis-${{ inputs.redis_version }}-${{ inputs.arch }}-${{ github.run_number }}
-          name: Redis ${{ inputs.redis_version }} (${{ inputs.arch }})
+          name: Redis ${{ inputs.redis_version }} ${{ inputs.arch }} Release
           body: |
-            Redis ${{ inputs.redis_version }}-${{ inputs.variant }}
+            Redis ${{ inputs.redis_version }}-alpine for ${{ inputs.arch }}
             Architecture: ${{ inputs.arch }}
-            OS: Linux
-            Format: Docker Archive (.tar.gz)
-
-            Compatible with Kylin / UOS / openEuler / Rocky / Alma
-          files: ${{ steps.vars.outputs.archive_name }}.gz
+            Format: Docker Archive (.tar)
+          files: redis-${{ inputs.redis_version }}-${{ inputs.arch }}.tar.gz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
